@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PacPic Admin Panel</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://maps.googleapis.com/maps/api/js?keyAIzaSyBRaty5Cs4xkv1dgudw_mS0PYyMxms4HFQ=&libraries=places"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .stat-card { transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out; }
+        .stat-card:hover { transform: translateY(-5px); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); }
+        #order-table tbody tr { transition: background-color 0.3s ease; }
+        #order-table tbody tr:hover { background-color: #374151; }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-200">
+
+    <audio id="alarm-sound" src="alarm.wav" preload="auto"></audio>
+
+    <div class="container mx-auto p-4 md:p-8">
+        <header class="mb-8 flex justify-between items-center">
+            <div>
+                <h1 class="text-4xl font-bold text-white">PacPic Admin Panel</h1>
+                <p class="text-gray-400">Live dashboard of your delivery operations.</p>
+            </div>
+            <button id="mute-btn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg">
+                Sound Off
+            </button>
+        </header>
+
+        <!-- Stats Section -->
+        <section id="stats" class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div id="riders-stat-card" class="stat-card bg-gray-800 p-6 rounded-lg shadow-lg border border-gray-700 cursor-pointer">
+                <h2 class="text-lg font-medium text-gray-400">Total Riders</h2>
+                <p id="total-riders" class="text-4xl font-bold text-white mt-2">0</p>
+            </div>
+            <div id="restaurants-stat-card" class="stat-card bg-gray-800 p-6 rounded-lg shadow-lg border border-gray-700 cursor-pointer">
+                <h2 class="text-lg font-medium text-gray-400">Total Restaurants</h2>
+                <p id="total-restaurants" class="text-4xl font-bold text-white mt-2">0</p>
+            </div>
+            <div class="stat-card bg-gray-800 p-6 rounded-lg shadow-lg border border-gray-700">
+                <h2 class="text-lg font-medium text-gray-400">Total Orders</h2>
+                <p id="total-orders" class="text-4xl font-bold text-white mt-2">0</p>
+            </div>
+        </section>
+
+        <!-- Live Orders Section -->
+        <section>
+            <h2 class="text-2xl font-bold text-white mb-4">Live Order Feed</h2>
+            <div class="bg-gray-800 rounded-lg shadow-lg overflow-hidden border border-gray-700">
+                <table id="order-table" class="min-w-full">
+                    <thead class="bg-gray-700">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Order Time</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Restaurant</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Rider</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Status</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Price</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Details</th>
+                        </tr>
+                    </thead>
+                    <tbody id="order-table-body" class="divide-y divide-gray-700">
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+
+    <!-- Order Details Modal -->
+    <div id="details-modal" class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
+        <div class="bg-gray-800 rounded-lg shadow-2xl p-8 w-full max-w-3xl border border-gray-700 relative">
+            <button id="close-modal" class="absolute top-4 right-4 text-gray-400 hover:text-white">&times;</button>
+            <h2 class="text-2xl font-bold mb-4">Order Details</h2>
+            <div id="modal-content" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            </div>
+        </div>
+    </div>
+    
+    <!-- List Modal for Riders/Restaurants -->
+    <div id="list-modal" class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
+        <div class="bg-gray-800 rounded-lg shadow-2xl p-8 w-full max-w-3xl border border-gray-700 relative">
+            <button id="close-list-modal" class="absolute top-4 right-4 text-gray-400 hover:text-white">&times;</button>
+            <h2 id="list-modal-title" class="text-2xl font-bold mb-4"></h2>
+            <div id="list-modal-content">
+                <!-- List content will be populated here -->
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Firebase SDKs -->
+    <script type="module">
+        // IMPORTANT: Replace this with your project's Firebase configuration
+        const firebaseConfig = {
+                apiKey: "AIzaSyAF-LT-rGdnTOls0lIGE6C_ssiwqOUOq5A",
+                authDomain: "arun-bc25d.firebaseapp.com",
+                databaseURL: "https://arun-bc25d-default-rtdb.firebaseio.com",
+                projectId: "arun-bc25d",
+                storageBucket: "arun-bc25d.appspot.com", // <-- THIS LINE IS CORRECTED
+                messagingSenderId: "250915027240",
+                appId: "1:250915027240:web:8a0e82a290b91a497a381d",
+                measurementId: "G-JELGTKLDHX"
+           };
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+        import { getDatabase, ref, onValue, get, child, onChildAdded, onChildChanged, query, orderByChild, limitToLast } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+        const auth = getAuth(app);
+
+        signInAnonymously(auth).catch((error) => console.error("Anonymous sign-in failed:", error));
+
+        const alarmSound = document.getElementById('alarm-sound');
+        const muteBtn = document.getElementById('mute-btn');
+        let isMuted = true;
+
+        const totalRidersEl = document.getElementById('total-riders');
+        const totalRestaurantsEl = document.getElementById('total-restaurants');
+        const totalOrdersEl = document.getElementById('total-orders');
+        const orderTableBody = document.getElementById('order-table-body');
+        
+        const modal = document.getElementById('details-modal');
+        const closeModalBtn = document.getElementById('close-modal');
+        const modalContent = document.getElementById('modal-content');
+        
+        const listModal = document.getElementById('list-modal');
+        const closeListModalBtn = document.getElementById('close-list-modal');
+        const listModalTitle = document.getElementById('list-modal-title');
+        const listModalContent = document.getElementById('list-modal-content');
+        const ridersStatCard = document.getElementById('riders-stat-card');
+        const restaurantsStatCard = document.getElementById('restaurants-stat-card');
+
+        const formatTimestamp = (timestamp) => {
+            return new Date(timestamp).toLocaleString('en-IN', {
+                day: '2-digit', month: 'short', year: 'numeric',
+                hour: '2-digit', minute: '2-digit', hour12: true
+            });
+        };
+        
+        const createStatusBadge = (status) => {
+            let colorClass = 'bg-yellow-500 text-yellow-900';
+            if (status === 'accepted') colorClass = 'bg-blue-500 text-blue-900';
+            if (status === 'completed') colorClass = 'bg-green-500 text-green-900';
+            if (status === 'cancelled') colorClass = 'bg-red-500 text-red-900';
+            return `<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${colorClass}">${status}</span>`;
+        };
+        
+        const showOrderDetails = async (orderId) => {
+            try {
+                const orderSnapshot = await get(child(ref(db), `orders/${orderId}`));
+                if (!orderSnapshot.exists()) return;
+                
+                const order = orderSnapshot.val();
+                let restaurantHtml = '<div><h3 class="font-bold text-lg mb-2">Restaurant</h3><p>Loading...</p></div>';
+                let riderHtml = '<div><h3 class="font-bold text-lg mb-2">Rider</h3><p>Not assigned yet.</p></div>';
+                
+                const price = (Number(order.price) || 0).toFixed(2);
+                let orderHtml = `<div><h3 class="font-bold text-lg mb-2">Order Info</h3>
+                                 <p><strong>Price:</strong> ₹${price}</p>
+                                 <p><strong>Status:</strong> ${order.status}</p>
+                                 <p><strong>Time:</strong> ${formatTimestamp(order.createdAt)}</p></div>`;
+                
+                const restSnapshot = await get(child(ref(db), `restaurants/${order.restaurantId}/profile`));
+                if (restSnapshot.exists()) {
+                    const r = restSnapshot.val();
+                    restaurantHtml = `<div><h3 class="font-bold text-lg mb-2">Restaurant</h3>
+                                      <p><strong>Name:</strong> ${r.name || 'N/A'}</p>
+                                      <p><strong>Phone:</strong> ${r.phone || 'N/A'}</p>
+                                      <p><strong>Address:</strong> ${r.address || 'N/A'}</p></div>`;
+                }
+
+                if (order.riderId) {
+                    const riderSnapshot = await get(child(ref(db), `riders/${order.riderId}`));
+                    if (riderSnapshot.exists()) {
+                        const r = riderSnapshot.val();
+                        riderHtml = `<div><h3 class="font-bold text-lg mb-2">Rider</h3>
+                                     <p><strong>Name:</strong> ${r.name || 'N/A'}</p>
+                                     <p><strong>Phone:</strong> ${r.phone || 'N/A'}</p>
+                                     <p><strong>Vehicle:</strong> ${r.vehicle || 'N/A'}</p></div>`;
+                    }
+                }
+                
+                modalContent.innerHTML = restaurantHtml + riderHtml + orderHtml;
+                modal.classList.remove('hidden');
+
+            } catch (error) {
+                console.error("Error fetching details:", error);
+            }
+        };
+
+        const showListModal = async (type) => {
+            listModalTitle.textContent = `All ${type.charAt(0).toUpperCase() + type.slice(1)}`;
+            listModalContent.innerHTML = '<p class="text-center">Loading...</p>';
+            listModal.classList.remove('hidden');
+
+            const path = type === 'riders' ? 'riders' : 'restaurants';
+            const snapshot = await get(ref(db, path));
+
+            if (!snapshot.exists()) {
+                listModalContent.innerHTML = `<p class="text-center">No ${type} found.</p>`;
+                return;
+            }
+
+            const data = snapshot.val();
+            let tableHtml = `<div class="overflow-y-auto max-h-[60vh]">
+                                <table class="min-w-full divide-y divide-gray-600">
+                                    <thead class="bg-gray-700 sticky top-0">`;
+
+            if (type === 'riders') {
+                tableHtml += `<tr>
+                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-300">Name</th>
+                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-300">Phone</th>
+                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-300">Vehicle</th>
+                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-300">Status</th>
+                              </tr></thead><tbody class="divide-y divide-gray-600">`;
+                for (const id in data) {
+                    const item = data[id];
+                    const status = item.isAvailable ? '<span class="text-green-400">Available</span>' : '<span class="text-red-400">On Ride</span>';
+                    tableHtml += `<tr>
+                                    <td class="px-4 py-2 whitespace-nowrap">${item.name || 'N/A'}</td>
+                                    <td class="px-4 py-2 whitespace-nowrap">${item.phone || 'N/A'}</td>
+                                    <td class="px-4 py-2 whitespace-nowrap">${item.vehicle || 'N/A'}</td>
+                                    <td class="px-4 py-2 whitespace-nowrap">${status}</td>
+                                  </tr>`;
+                }
+            } else { // Restaurants
+                tableHtml += `<tr>
+                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-300">Name</th>
+                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-300">Phone</th>
+                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-300">Address</th>
+                              </tr></thead><tbody class="divide-y divide-gray-600">`;
+                for (const id in data) {
+                    const item = data[id].profile;
+                    if (item) {
+                       tableHtml += `<tr>
+                                        <td class="px-4 py-2 whitespace-nowrap">${item.name || 'N/A'}</td>
+                                        <td class="px-4 py-2 whitespace-nowrap">${item.phone || 'N/A'}</td>
+                                        <td class="px-4 py-2">${item.address || 'N/A'}</td>
+                                      </tr>`;
+                    }
+                }
+            }
+            tableHtml += `</tbody></table></div>`;
+            listModalContent.innerHTML = tableHtml;
+        };
+
+        // --- Listeners ---
+        onValue(ref(db, 'riders'), (s) => totalRidersEl.textContent = s.exists() ? s.size.toString() : '0');
+        onValue(ref(db, 'restaurants'), (s) => totalRestaurantsEl.textContent = s.exists() ? s.size.toString() : '0');
+        onValue(ref(db, 'orders'), (s) => totalOrdersEl.textContent = s.exists() ? s.size.toString() : '0');
+        
+        const ordersQuery = query(ref(db, 'orders'), orderByChild('createdAt'), limitToLast(50));
+
+        onChildAdded(ordersQuery, async (snapshot) => {
+            const orderId = snapshot.key;
+            const order = snapshot.val();
+            
+            if (document.getElementById(`order-${orderId}`)) return;
+
+            if (order.status === 'pending' && !isMuted) {
+                alarmSound.currentTime = 0;
+                alarmSound.play().catch(e => console.error("Audio play failed:", e));
+            }
+
+            const row = document.createElement('tr');
+            row.id = `order-${orderId}`;
+            
+            let riderName = 'N/A';
+            if (order.riderId) {
+                const riderSnapshot = await get(child(ref(db), `riders/${order.riderId}`));
+                if (riderSnapshot.exists()) riderName = riderSnapshot.val().name;
+            }
+
+            const price = (Number(order.price) || 0).toFixed(2);
+
+            row.innerHTML = `
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${formatTimestamp(order.createdAt)}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${order.restaurantName || 'N/A'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300 rider-name">${riderName}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm status-cell">${createStatusBadge(order.status)}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">₹${price}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                    <button class="details-btn text-indigo-400 hover:text-indigo-300" data-id="${orderId}">View</button>
+                </td>
+            `;
+            orderTableBody.prepend(row);
+        });
+
+        onChildChanged(ref(db, 'orders'), async (snapshot) => {
+            const orderId = snapshot.key;
+            const order = snapshot.val();
+            const row = document.getElementById(`order-${orderId}`);
+            if (row) {
+                row.querySelector('.status-cell').innerHTML = createStatusBadge(order.status);
+                
+                let riderName = 'N/A';
+                if (order.riderId) {
+                    const riderSnapshot = await get(child(ref(db), `riders/${order.riderId}`));
+                    if (riderSnapshot.exists()) riderName = riderSnapshot.val().name;
+                }
+                row.querySelector('.rider-name').textContent = riderName;
+            }
+        });
+        
+        // --- Event Listeners ---
+        muteBtn.addEventListener('click', () => {
+            isMuted = !isMuted;
+            muteBtn.textContent = isMuted ? 'Sound Off' : 'Sound On';
+            muteBtn.classList.toggle('bg-red-600', isMuted);
+            muteBtn.classList.toggle('hover:bg-red-700', isMuted);
+            muteBtn.classList.toggle('bg-green-600', !isMuted);
+            muteBtn.classList.toggle('hover:bg-green-700', !isMuted);
+            
+            if (!isMuted) {
+                alarmSound.play().then(() => alarmSound.pause()).catch(() => {});
+            }
+        });
+        closeModalBtn.addEventListener('click', () => modal.classList.add('hidden'));
+        orderTableBody.addEventListener('click', (e) => {
+            if (e.target.classList.contains('details-btn')) {
+                showOrderDetails(e.target.getAttribute('data-id'));
+            }
+        });
+        
+        closeListModalBtn.addEventListener('click', () => listModal.classList.add('hidden'));
+        ridersStatCard.addEventListener('click', () => showListModal('riders'));
+        restaurantsStatCard.addEventListener('click', () => showListModal('restaurants'));
+
+    </script>
+</body>
+</html>
