@@ -351,7 +351,7 @@
                     const isPaid = type === 'riders' ? order.isPaidToRider : order.isSettledByRestaurant;
                     
                     if (order.status === 'completed' && !isPaid && order.createdAt >= startDate && order.createdAt <= endDate) {
-                        const amount = type === 'riders' ? (Number(order.price) * 15 / 25) : (Number(order.price) * 10 / 25);
+                        const amount = type === 'riders' ? (Number(order.price) * 15 / 25) : (Number(order.price));
                         total += amount;
                         calculatedOrders.push(orderId);
                         
